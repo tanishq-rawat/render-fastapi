@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 import yagmail
 import os
 from dotenv import load_dotenv
@@ -14,14 +14,14 @@ TO_EMAIL = os.getenv("TO_EMAIL")
 if not all([EMAIL_USER, EMAIL_PASS, TO_EMAIL]):
     raise ValueError("Missing EMAIL_USER, EMAIL_PASS, or TO_EMAIL in environment")
 
-# Configure yagmail with env credentials
+# Configure yagmail
 yag = yagmail.SMTP(EMAIL_USER, EMAIL_PASS)
 
 app = FastAPI()
 
 class ContactForm(BaseModel):
     name: str
-    email: EmailStr | None = None  # optional email
+    email: str | None = None  # now normal string
     subject: str
     message: str
 
@@ -39,7 +39,6 @@ async def send_contact_form(data: ContactForm):
         {data.message}
         """
 
-        # Send email
         yag.send(
             to=TO_EMAIL,
             subject=f"Contact Form: {data.subject}",
