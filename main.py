@@ -3,6 +3,7 @@ from pydantic import BaseModel
 import yagmail
 import os
 from dotenv import load_dotenv
+import threading
 
 # Load environment variables
 load_dotenv()
@@ -14,19 +15,18 @@ TO_EMAIL = os.getenv("TO_EMAIL")
 if not all([EMAIL_USER, EMAIL_PASS, TO_EMAIL]):
     raise ValueError("Missing EMAIL_USER, EMAIL_PASS, or TO_EMAIL in environment")
 
-# Configure yagmail
 yag = yagmail.SMTP(EMAIL_USER, EMAIL_PASS)
 
 app = FastAPI()
 
 class ContactForm(BaseModel):
     name: str
-    email: str | None = None  # now normal string
+    email: str | None = None
     subject: str
     message: str
 
-@app.post("/contact")
-async def send_contact_form(data: ContactForm):
+def send_email(data: ContactForm):
+    """Send email in a separate thread"""
     try:
         body = f"""
         📩 New contact form submission
@@ -38,14 +38,19 @@ async def send_contact_form(data: ContactForm):
         💬 Message:
         {data.message}
         """
-
         yag.send(
             to=TO_EMAIL,
             subject=f"Contact Form: {data.subject}",
             contents=body
         )
-
-        return {"status": "success", "message": "Email sent successfully"}
-
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error sending email: {str(e)}")
+        print(f"Error sending email in background thread: {e}")
+
+@app.post("/contact")
+async def send_contact_form(data: ContactForm):
+    try:
+        # Run email sending in a separate thread
+        threading.Thread(target=send_email, args=(data,), daemon=True).start()
+        return {"status": "success", "message": "Email is being sent"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error scheduling email: {str(e)}")
